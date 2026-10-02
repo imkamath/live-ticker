@@ -1,0 +1,73 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack project bundle (first run only)
+        run: |
+          if [ -f bundle.txt ]; then
+            python3 - <<'PY'
+          import os, re
+          data = open('bundle.txt', encoding='utf-8').read()
+          data = data.replace('@D{', '${').replace('@BT', '`')
+          for part in re.split(r'^=====FILE: ', data, flags=re.M)[1:]:
+              path, body = part.split('=====\n', 1)
+              os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+              open(path, 'w', encoding='utf-8').write(body)
+              print('wrote', path)
+          PY
+            git rm -q bundle.txt
+          fi
+
+      - name: Create fixed signing key (first run only)
+        run: |
+          if [ ! -f app/debug.keystore ]; then
+            keytool -genkeypair -keystore app/debug.keystore -storepass android -keypass android \
+              -alias androiddebugkey -dname "CN=Live Ticker,O=Live Ticker,C=IN" \
+              -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12
+          fi
+
+      - name: Save unpacked files to the repo
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || (git commit -m "Unpack project and add signing key [skip ci]" && git push)
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Name the APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk LiveTicker-v${{ github.run_number }}.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiveTicker-apk
+          path: LiveTicker-v${{ github.run_number }}.apk
+
+      - name: Publish download link (Releases)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Live Ticker v${{ github.run_number }}
+          files: LiveTicker-v${{ github.run_number }}.apk
+          make_latest: true
