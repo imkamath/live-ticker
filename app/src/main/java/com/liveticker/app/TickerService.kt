@@ -118,7 +118,7 @@ class TickerService : Service() {
 
     private fun stockLoop(gen: Int) {
         if (gen != generation) return
-        val symbols = Prefs.symbols(this)
+        val symbols = if (Prefs.stocksOn(this)) Prefs.symbols(this) else emptyList()
         val list = ArrayList<Quote>()
         for (s in symbols) {
             if (gen != generation) return
@@ -140,7 +140,7 @@ class TickerService : Service() {
 
     private fun sportsLoop(gen: Int) {
         if (gen != generation) return
-        val keys = Prefs.sports(this)
+        val keys = if (Prefs.sportsOn(this)) Prefs.sports(this) else emptySet()
         if (keys.isEmpty()) {
             sports = emptyList()
             sportsError = null
@@ -195,7 +195,8 @@ class TickerService : Service() {
         )
 
         val showNews = Prefs.newsOn(this) && Prefs.newsCity(this).isNotEmpty()
-        val showSports = Prefs.sports(this).isNotEmpty()
+        val showSports = Prefs.sportsOn(this) && Prefs.sports(this).isNotEmpty()
+        val showStocks = Prefs.stocksOn(this)
         val speed = Prefs.speed(this).toFloat()
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
@@ -206,8 +207,10 @@ class TickerService : Service() {
                 setLineSpacing(0f, 1.15f)
                 maxWidth = (dm.widthPixels * 0.75).toInt()
             }
-            card = tv
-            box.addView(tv)
+            if (showStocks) {
+                card = tv
+                box.addView(tv)
+            }
             box.setPadding(dp(12), dp(10), dp(12), dp(10))
             box.background = GradientDrawable().apply {
                 setColor(BG)
@@ -224,9 +227,11 @@ class TickerService : Service() {
                 speedDpPerSec = speed
                 setPadding(dp(8), dp(6), dp(8), dp(6))
             }
-            marquee = mv
-            box.addView(mv, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            if (showStocks) {
+                marquee = mv
+                box.addView(mv, LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            }
             box.setBackgroundColor(BG)
             lp.gravity = (if (style == Prefs.STYLE_BOTTOM) Gravity.BOTTOM else Gravity.TOP) or Gravity.START
             lp.x = 0
@@ -235,6 +240,10 @@ class TickerService : Service() {
 
         if (showSports) sportsView = addLine(box, textSp, speed)
         if (showNews) newsView = addLine(box, (textSp - 1f).coerceAtLeast(10f), speed)
+        if (box.childCount == 0) {
+            stopSelf()
+            return
+        }
         val view: View = box
 
         makeDraggable(view, lp)
@@ -261,14 +270,18 @@ class TickerService : Service() {
 
     private fun addLine(box: LinearLayout, textSp: Float, speed: Float): MarqueeView {
         val floating = style == Prefs.STYLE_FLOATING
-        box.addView(View(this).apply { setBackgroundColor(DIVIDER) },
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply {
-                topMargin = if (floating) dp(8) else 0
-            })
+        val first = box.childCount == 0
+        if (!first) {
+            box.addView(View(this).apply { setBackgroundColor(DIVIDER) },
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply {
+                    topMargin = if (floating) dp(8) else 0
+                })
+        }
         val mv = MarqueeView(this).apply {
             setTextSizeSp(textSp)
             speedDpPerSec = speed
-            if (floating) setPadding(0, dp(6), 0, 0) else setPadding(dp(8), dp(5), dp(8), dp(6))
+            if (floating) setPadding(0, if (first) 0 else dp(6), 0, 0)
+            else setPadding(dp(8), if (first) dp(6) else dp(5), dp(8), dp(6))
         }
         box.addView(mv, LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))

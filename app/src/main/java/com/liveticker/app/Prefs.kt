@@ -9,6 +9,8 @@ object Prefs {
     const val STYLE_BOTTOM = "bottom"
 
     const val KEY_SYMBOLS = "symbols"
+    const val KEY_STOCKS_ON = "stocks_on"
+    const val KEY_SPORTS_ON = "sports_on"
     const val KEY_STYLE = "style"
     const val KEY_TEXT_SIZE = "text_size"
     const val KEY_SPEED = "speed"
@@ -32,6 +34,8 @@ object Prefs {
             .filter { it.isNotEmpty() }
             .distinct()
 
+    fun stocksOn(c: Context): Boolean = of(c).getBoolean(KEY_STOCKS_ON, true)
+    fun sportsOn(c: Context): Boolean = of(c).getBoolean(KEY_SPORTS_ON, true)
     fun style(c: Context): String = of(c).getString(KEY_STYLE, STYLE_TOP) ?: STYLE_TOP
     fun textSize(c: Context): Int = of(c).getInt(KEY_TEXT_SIZE, 14)
     fun speed(c: Context): Int = of(c).getInt(KEY_SPEED, 60)

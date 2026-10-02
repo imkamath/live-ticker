@@ -29,6 +29,8 @@ class MainActivity : Activity() {
     private lateinit var sbSpeed: SeekBar
     private lateinit var tvSpeed: TextView
     private lateinit var cbNews: CheckBox
+    private lateinit var cbStocks: CheckBox
+    private lateinit var cbSports: CheckBox
     private lateinit var etCity: EditText
     private lateinit var etNewsMin: EditText
 
@@ -48,6 +50,8 @@ class MainActivity : Activity() {
         sbSpeed = findViewById(R.id.sbSpeed)
         tvSpeed = findViewById(R.id.tvSpeed)
         cbNews = findViewById(R.id.cbNews)
+        cbStocks = findViewById(R.id.cbStocks)
+        cbSports = findViewById(R.id.cbSports)
         etCity = findViewById(R.id.etCity)
         etNewsMin = findViewById(R.id.etNewsMin)
 
@@ -57,6 +61,8 @@ class MainActivity : Activity() {
         etTeams.setText(p.getString(Prefs.KEY_TEAMS, ""))
         etSportsSec.setText(Prefs.sportsSec(this).toString())
         cbNews.isChecked = Prefs.newsOn(this)
+        cbStocks.isChecked = Prefs.stocksOn(this)
+        cbSports.isChecked = Prefs.sportsOn(this)
         etCity.setText(Prefs.newsCity(this))
         etNewsMin.setText(Prefs.newsMin(this).toString())
         setupSports()
@@ -148,6 +154,8 @@ class MainActivity : Activity() {
             .putInt(Prefs.KEY_TEXT_SIZE, sbTextSize.progress)
             .putInt(Prefs.KEY_SPEED, sbSpeed.progress)
             .putBoolean(Prefs.KEY_NEWS_ON, cbNews.isChecked)
+            .putBoolean(Prefs.KEY_STOCKS_ON, cbStocks.isChecked)
+            .putBoolean(Prefs.KEY_SPORTS_ON, cbSports.isChecked)
             .putString(Prefs.KEY_NEWS_CITY, etCity.text.toString().trim())
             .putInt(Prefs.KEY_NEWS_MIN, etNewsMin.text.toString().toIntOrNull()?.coerceAtLeast(5) ?: 10)
             .apply()
@@ -155,6 +163,14 @@ class MainActivity : Activity() {
 
     private fun startTicker() {
         save()
+        val anyLine = (Prefs.stocksOn(this) && Prefs.symbols(this).isNotEmpty()) ||
+            (Prefs.sportsOn(this) && Prefs.sports(this).isNotEmpty()) ||
+            (Prefs.newsOn(this) && Prefs.newsCity(this).isNotEmpty())
+        if (!anyLine) {
+            stopService(Intent(this, TickerService::class.java))
+            Toast.makeText(this, "Turn on at least one line: stocks, sports or news.", Toast.LENGTH_LONG).show()
+            return
+        }
         if (!Settings.canDrawOverlays(this)) {
             Toast.makeText(
                 this,

@@ -18,6 +18,10 @@
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="4dp" android:alpha="0.75" android:textSize="13sp"
             android:text="Comma-separated symbols.\nIndia NSE: RELIANCE.NS, TCS.NS · BSE: RELIANCE.BO\nUS: AAPL, TSLA, MSFT\nIndices: ^NSEI (Nifty), ^BSESN (Sensex), ^GSPC (S&amp;P 500), ^IXIC (Nasdaq)" />
+        <CheckBox
+            android:id="@+id/cbStocks"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Show stock prices line" />
         <EditText
             android:id="@+id/etSymbols"
             android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -54,7 +58,11 @@
         <TextView
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="4dp" android:alpha="0.75" android:textSize="13sp"
-            android:text="Free live scores from ESPN. No key and no daily limit. Tick the sports you follow; they show as their own line under the stock ticker." />
+            android:text="Free live scores from ESPN. No key and no daily limit. Tick the sports you follow; they show as their own line in the ticker." />
+        <CheckBox
+            android:id="@+id/cbSports"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:text="Show sports line" />
         <LinearLayout
             android:id="@+id/sportsList"
             android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -86,11 +94,11 @@
         <TextView
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="4dp" android:alpha="0.75" android:textSize="13sp"
-            android:text="Free headlines from Google News for your city. No key and no daily limit. Shows as a second line under the market ticker." />
+            android:text="Free headlines from Google News for your city. No key and no daily limit. Shows as its own line in the ticker." />
         <CheckBox
             android:id="@+id/cbNews"
             android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Show local news line" />
+            android:text="Show news line" />
         <EditText
             android:id="@+id/etCity"
             android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -157,6 +165,6 @@
         <TextView
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="12dp" android:alpha="0.75" android:textSize="13sp"
-            android:text="Tips: drag the ticker to move it. Long-press it to come back to these settings. You can also stop it from the notification." />
+            android:text="Turn each line (stocks, sports, news) on or off on its own. Tips: drag the ticker to move it. Long-press it to come back to these settings. You can also stop it from the notification." />
     </LinearLayout>
 </ScrollView>
