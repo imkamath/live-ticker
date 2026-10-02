@@ -47,39 +47,31 @@
         <View android:layout_width="match_parent" android:layout_height="1dp"
             android:layout_marginVertical="16dp" android:background="?android:attr/listDivider" />
 
-        <!-- CRICKET -->
+        <!-- SPORTS -->
         <TextView
             android:layout_width="wrap_content" android:layout_height="wrap_content"
-            android:text="Cricket" android:textSize="20sp" android:textStyle="bold" />
+            android:text="Sports scores" android:textSize="20sp" android:textStyle="bold" />
         <TextView
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:layout_marginTop="4dp" android:alpha="0.75" android:textSize="13sp"
-            android:text="Get a free API key at cricketdata.org (sign up → your key is on the dashboard). Free plan = 100 updates per day." />
-        <EditText
-            android:id="@+id/etApiKey"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="Paste CricketData API key"
-            android:inputType="text|textNoSuggestions" android:singleLine="true" />
-        <Button
-            android:id="@+id/btnLoadMatches"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="Load current matches" />
-        <TextView
-            android:id="@+id/tvMatchStatus"
-            android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:layout_marginTop="6dp" android:textSize="13sp" />
+            android:text="Free live scores from ESPN. No key and no daily limit. Tick the sports you follow; they show as their own line under the stock ticker." />
         <LinearLayout
-            android:id="@+id/matchList"
+            android:id="@+id/sportsList"
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:orientation="vertical" />
+        <EditText
+            android:id="@+id/etTeams"
+            android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:hint="Only these teams (optional), e.g. India, MI, Arsenal"
+            android:inputType="textCapWords" android:singleLine="true" />
         <LinearLayout
             android:layout_width="match_parent" android:layout_height="wrap_content"
             android:gravity="center_vertical" android:orientation="horizontal">
             <TextView
                 android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                android:text="Update score every (seconds)\n120 sec ≈ 3 hrs of free updates/day" />
+                android:text="Update scores every (seconds)" />
             <EditText
-                android:id="@+id/etCricketSec"
+                android:id="@+id/etSportsSec"
                 android:layout_width="80dp" android:layout_height="wrap_content"
                 android:gravity="center" android:inputType="number" />
         </LinearLayout>

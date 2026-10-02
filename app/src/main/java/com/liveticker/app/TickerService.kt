@@ -58,15 +58,16 @@ class TickerService : Service() {
     private var marquee: MarqueeView? = null
     private var card: TextView? = null
     private var newsView: MarqueeView? = null
+    private var sportsView: MarqueeView? = null
     private var style = Prefs.STYLE_TOP
 
     private val quoteCache = HashMap<String, Quote>()
     @Volatile private var quotes: List<Quote> = emptyList()
-    @Volatile private var matches: List<Match> = emptyList()
+    @Volatile private var sports: List<SportItem> = emptyList()
     @Volatile private var stockError: String? = null
-    @Volatile private var cricketError: String? = null
+    @Volatile private var sportsError: String? = null
     @Volatile private var stocksLoaded = false
-    @Volatile private var cricketLoaded = false
+    @Volatile private var sportsLoaded = false
     @Volatile private var news: List<NewsItem> = emptyList()
     @Volatile private var newsError: String? = null
     @Volatile private var newsLoaded = false
@@ -94,12 +95,12 @@ class TickerService : Service() {
         }
         val gen = ++generation
         stocksLoaded = false
-        cricketLoaded = false
+        sportsLoaded = false
         newsLoaded = false
         showOverlay()
         render()
         bg.post { stockLoop(gen) }
-        bg.post { cricketLoop(gen) }
+        bg.post { sportsLoop(gen) }
         bg.post { newsLoop(gen) }
         return START_STICKY
     }
@@ -137,25 +138,23 @@ class TickerService : Service() {
         if (gen == generation) bg.postDelayed({ stockLoop(gen) }, Prefs.stockSec(this) * 1000L)
     }
 
-    private fun cricketLoop(gen: Int) {
+    private fun sportsLoop(gen: Int) {
         if (gen != generation) return
-        val selected = Prefs.matchEntries(this)
-        val key = Prefs.apiKey(this)
-        if (selected.isEmpty() || key.isEmpty()) {
-            matches = emptyList()
-            cricketError = null
+        val keys = Prefs.sports(this)
+        if (keys.isEmpty()) {
+            sports = emptyList()
+            sportsError = null
         } else {
             try {
-                val found = DataFetcher.fetchCurrentMatches(key).filter { it.id in selected.keys }
-                matches = found
-                cricketError = if (found.isEmpty()) "Selected match isn't live right now" else null
+                sports = SportsFetcher.fetch(keys, Prefs.teams(this))
+                sportsError = null
             } catch (e: Exception) {
-                cricketError = "Cricket: ${e.message ?: "update failed"}"
+                if (sports.isEmpty()) sportsError = "Scores: couldn't load, will retry"
             }
         }
-        cricketLoaded = true
+        sportsLoaded = true
         main.post { render() }
-        if (gen == generation) bg.postDelayed({ cricketLoop(gen) }, Prefs.cricketSec(this) * 1000L)
+        if (gen == generation) bg.postDelayed({ sportsLoop(gen) }, Prefs.sportsSec(this) * 1000L)
     }
 
     private fun newsLoop(gen: Int) {
@@ -196,6 +195,7 @@ class TickerService : Service() {
         )
 
         val showNews = Prefs.newsOn(this) && Prefs.newsCity(this).isNotEmpty()
+        val showSports = Prefs.sports(this).isNotEmpty()
         val speed = Prefs.speed(this).toFloat()
         val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
@@ -213,7 +213,7 @@ class TickerService : Service() {
                 setColor(BG)
                 cornerRadius = dp(14).toFloat()
             }
-            lp.width = if (showNews) (dm.widthPixels * 0.75).toInt() + dp(24)
+            lp.width = if (showNews || showSports) (dm.widthPixels * 0.75).toInt() + dp(24)
                        else WindowManager.LayoutParams.WRAP_CONTENT
             lp.gravity = Gravity.TOP or Gravity.START
             lp.x = prefs.getInt("pos_x_floating", dm.widthPixels / 8)
@@ -233,21 +233,8 @@ class TickerService : Service() {
             lp.y = prefs.getInt("pos_y_$style", 0)
         }
 
-        if (showNews) {
-            box.addView(View(this).apply { setBackgroundColor(DIVIDER) },
-                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply {
-                    topMargin = if (style == Prefs.STYLE_FLOATING) dp(8) else 0
-                })
-            val nv = MarqueeView(this).apply {
-                setTextSizeSp((textSp - 1f).coerceAtLeast(10f))
-                speedDpPerSec = speed
-                if (style == Prefs.STYLE_FLOATING) setPadding(0, dp(6), 0, 0)
-                else setPadding(dp(8), dp(5), dp(8), dp(6))
-            }
-            newsView = nv
-            box.addView(nv, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-        }
+        if (showSports) sportsView = addLine(box, textSp, speed)
+        if (showNews) newsView = addLine(box, (textSp - 1f).coerceAtLeast(10f), speed)
         val view: View = box
 
         makeDraggable(view, lp)
@@ -258,6 +245,7 @@ class TickerService : Service() {
             marquee = null
             card = null
             newsView = null
+            sportsView = null
             stopSelf()
         }
     }
@@ -268,6 +256,23 @@ class TickerService : Service() {
         marquee = null
         card = null
         newsView = null
+        sportsView = null
+    }
+
+    private fun addLine(box: LinearLayout, textSp: Float, speed: Float): MarqueeView {
+        val floating = style == Prefs.STYLE_FLOATING
+        box.addView(View(this).apply { setBackgroundColor(DIVIDER) },
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply {
+                topMargin = if (floating) dp(8) else 0
+            })
+        val mv = MarqueeView(this).apply {
+            setTextSizeSp(textSp)
+            speedDpPerSec = speed
+            if (floating) setPadding(0, dp(6), 0, 0) else setPadding(dp(8), dp(5), dp(8), dp(6))
+        }
+        box.addView(mv, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        return mv
     }
 
     /** Drag to move. Long-press to open settings. */
@@ -330,20 +335,6 @@ class TickerService : Service() {
         fun next() { if (sb.isNotEmpty()) sb.append(sep) }
         val flag = Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
 
-        for (m in matches) {
-            next()
-            val s = sb.length
-            sb.append("🏏 ").append(m.scoreText)
-            sb.setSpan(StyleSpan(Typeface.BOLD), s, sb.length, flag)
-            if (m.status.isNotBlank()) {
-                sb.append(if (floating) "\n      " else "  —  ")
-                val st = sb.length
-                sb.append(m.status)
-                sb.setSpan(ForegroundColorSpan(DIM), st, sb.length, flag)
-            }
-        }
-        cricketError?.let { next(); sb.append("🏏 ").append(it) }
-
         for (q in quotes) {
             next()
             val s = sb.length
@@ -359,13 +350,37 @@ class TickerService : Service() {
 
         if (sb.isEmpty()) {
             sb.append(
-                if (stocksLoaded && cricketLoaded) "Long-press here to add stocks or a match"
-                else "Loading live prices and scores…"
+                if (stocksLoaded) "Long-press here to add stocks"
+                else "Loading live prices…"
             )
         }
         marquee?.setText(sb)
         card?.text = sb
+        renderSports()
         renderNews()
+    }
+
+    private fun renderSports() {
+        val sv = sportsView ?: return
+        val sb = SpannableStringBuilder()
+        if (sports.isEmpty()) {
+            sb.append("🏆 ")
+            sb.append(sportsError ?: if (sportsLoaded) "No matches today for your sports or teams"
+                                     else "Loading scores…")
+        } else {
+            for ((i, item) in sports.withIndex()) {
+                if (i > 0) sb.append("      •      ")
+                sb.append(item.icon).append(" ")
+                if (item.live) {
+                    val st = sb.length
+                    sb.append("LIVE ")
+                    sb.setSpan(ForegroundColorSpan(DOWN), st, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    sb.setSpan(StyleSpan(Typeface.BOLD), st, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                sb.append(item.text)
+            }
+        }
+        sv.setText(sb)
     }
 
     private fun renderNews() {

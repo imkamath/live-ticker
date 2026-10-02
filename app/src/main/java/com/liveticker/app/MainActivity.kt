@@ -21,10 +21,8 @@ class MainActivity : Activity() {
 
     private lateinit var etSymbols: EditText
     private lateinit var etStockSec: EditText
-    private lateinit var etApiKey: EditText
-    private lateinit var etCricketSec: EditText
-    private lateinit var matchList: LinearLayout
-    private lateinit var tvMatchStatus: TextView
+    private lateinit var etTeams: EditText
+    private lateinit var etSportsSec: EditText
     private lateinit var rgStyle: RadioGroup
     private lateinit var sbTextSize: SeekBar
     private lateinit var tvTextSize: TextView
@@ -34,7 +32,7 @@ class MainActivity : Activity() {
     private lateinit var etCity: EditText
     private lateinit var etNewsMin: EditText
 
-    private val selected = LinkedHashMap<String, String>()   // match id -> name
+    private val sportBoxes = LinkedHashMap<String, CheckBox>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,10 +40,8 @@ class MainActivity : Activity() {
 
         etSymbols = findViewById(R.id.etSymbols)
         etStockSec = findViewById(R.id.etStockSec)
-        etApiKey = findViewById(R.id.etApiKey)
-        etCricketSec = findViewById(R.id.etCricketSec)
-        matchList = findViewById(R.id.matchList)
-        tvMatchStatus = findViewById(R.id.tvMatchStatus)
+        etTeams = findViewById(R.id.etTeams)
+        etSportsSec = findViewById(R.id.etSportsSec)
         rgStyle = findViewById(R.id.rgStyle)
         sbTextSize = findViewById(R.id.sbTextSize)
         tvTextSize = findViewById(R.id.tvTextSize)
@@ -58,13 +54,12 @@ class MainActivity : Activity() {
         val p = Prefs.of(this)
         etSymbols.setText(p.getString(Prefs.KEY_SYMBOLS, Prefs.DEFAULT_SYMBOLS))
         etStockSec.setText(Prefs.stockSec(this).toString())
-        etApiKey.setText(Prefs.apiKey(this))
-        etCricketSec.setText(Prefs.cricketSec(this).toString())
+        etTeams.setText(p.getString(Prefs.KEY_TEAMS, ""))
+        etSportsSec.setText(Prefs.sportsSec(this).toString())
         cbNews.isChecked = Prefs.newsOn(this)
         etCity.setText(Prefs.newsCity(this))
         etNewsMin.setText(Prefs.newsMin(this).toString())
-        selected.putAll(Prefs.matchEntries(this))
-        showSavedMatches()
+        setupSports()
 
         rgStyle.check(
             when (Prefs.style(this)) {
@@ -87,7 +82,6 @@ class MainActivity : Activity() {
 
         setupQuickAdd()
 
-        findViewById<Button>(R.id.btnLoadMatches).setOnClickListener { loadMatches() }
         findViewById<Button>(R.id.btnStart).setOnClickListener { startTicker() }
         findViewById<Button>(R.id.btnStop).setOnClickListener {
             stopService(Intent(this, TickerService::class.java))
@@ -124,58 +118,16 @@ class MainActivity : Activity() {
         }
     }
 
-    // ---------- cricket matches ----------
-
-    private fun loadMatches() {
-        val key = etApiKey.text.toString().trim()
-        Prefs.of(this).edit().putString(Prefs.KEY_API_KEY, key).apply()
-        if (key.isEmpty()) {
-            tvMatchStatus.text = "Enter your free CricketData API key first."
-            return
+    private fun setupSports() {
+        val box = findViewById<LinearLayout>(R.id.sportsList)
+        val chosen = Prefs.sports(this)
+        for (s in SportsFetcher.ALL) {
+            val cb = CheckBox(this)
+            cb.text = s.icon + "  " + s.label
+            cb.isChecked = s.key in chosen
+            box.addView(cb)
+            sportBoxes[s.key] = cb
         }
-        tvMatchStatus.text = "Loading matches…"
-        Thread {
-            try {
-                val list = DataFetcher.fetchCurrentMatches(key).sortedBy { it.ended }
-                runOnUiThread { showMatches(list) }
-            } catch (e: Exception) {
-                runOnUiThread { tvMatchStatus.text = "Couldn't load matches: ${e.message}" }
-            }
-        }.start()
-    }
-
-    private fun showMatches(list: List<Match>) {
-        matchList.removeAllViews()
-        selected.keys.retainAll(list.map { it.id }.toSet())
-        if (list.isEmpty()) {
-            tvMatchStatus.text = "No current matches right now."
-            return
-        }
-        tvMatchStatus.text = "Tick the matches to show on the ticker:"
-        for (m in list) {
-            val extra = if (m.ended) "${m.status} (finished)" else m.status
-            addMatchBox(m.id, m.name, extra)
-        }
-    }
-
-    private fun showSavedMatches() {
-        matchList.removeAllViews()
-        if (selected.isEmpty()) {
-            tvMatchStatus.text = "Tap \"Load current matches\" to pick a match."
-            return
-        }
-        tvMatchStatus.text = "Selected matches:"
-        for ((id, name) in selected) addMatchBox(id, name, "")
-    }
-
-    private fun addMatchBox(id: String, name: String, status: String) {
-        val cb = CheckBox(this)
-        cb.text = if (status.isBlank()) name else "$name\n$status"
-        cb.isChecked = id in selected
-        cb.setOnCheckedChangeListener { _, checked ->
-            if (checked) selected[id] = name else selected.remove(id)
-        }
-        matchList.addView(cb)
     }
 
     // ---------- save / start ----------
@@ -189,9 +141,9 @@ class MainActivity : Activity() {
         Prefs.of(this).edit()
             .putString(Prefs.KEY_SYMBOLS, etSymbols.text.toString())
             .putInt(Prefs.KEY_STOCK_SEC, etStockSec.text.toString().toIntOrNull()?.coerceAtLeast(10) ?: 30)
-            .putString(Prefs.KEY_API_KEY, etApiKey.text.toString().trim())
-            .putInt(Prefs.KEY_CRICKET_SEC, etCricketSec.text.toString().toIntOrNull()?.coerceAtLeast(30) ?: 120)
-            .putStringSet(Prefs.KEY_MATCHES, selected.map { "${it.key}\t${it.value}" }.toSet())
+            .putStringSet(Prefs.KEY_SPORTS, sportBoxes.filter { it.value.isChecked }.keys.toSet())
+            .putString(Prefs.KEY_TEAMS, etTeams.text.toString().trim())
+            .putInt(Prefs.KEY_SPORTS_SEC, etSportsSec.text.toString().toIntOrNull()?.coerceAtLeast(30) ?: 120)
             .putString(Prefs.KEY_STYLE, style)
             .putInt(Prefs.KEY_TEXT_SIZE, sbTextSize.progress)
             .putInt(Prefs.KEY_SPEED, sbSpeed.progress)

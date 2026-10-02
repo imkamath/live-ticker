@@ -31,14 +31,6 @@ data class Quote(
     }
 }
 
-data class Match(
-    val id: String,
-    val name: String,
-    val status: String,
-    val ended: Boolean,
-    val scoreText: String
-)
-
 object DataFetcher {
 
     private val INDEX_NAMES = mapOf(
@@ -84,51 +76,5 @@ object DataFetcher {
         Quote(symbol, label, price, pct, meta.optString("currency", ""))
     } catch (e: Exception) {
         null
-    }
-
-    /** All current matches from CricketData.org. Throws with a readable message on failure. */
-    fun fetchCurrentMatches(apiKey: String): List<Match> {
-        if (apiKey.isBlank()) throw IOException("add your CricketData API key")
-        val root = JSONObject(
-            get("https://api.cricapi.com/v1/currentMatches?apikey=" +
-                URLEncoder.encode(apiKey, "UTF-8") + "&offset=0")
-        )
-        if (root.optString("status") != "success") {
-            throw IOException(root.optString("reason", "cricket API error"))
-        }
-        val arr = root.optJSONArray("data") ?: return emptyList()
-        val out = ArrayList<Match>()
-        for (i in 0 until arr.length()) {
-            val m = arr.optJSONObject(i) ?: continue
-            out.add(parseMatch(m))
-        }
-        return out
-    }
-
-    private fun parseMatch(m: JSONObject): Match {
-        val shortNames = HashMap<String, String>()
-        m.optJSONArray("teamInfo")?.let { t ->
-            for (i in 0 until t.length()) {
-                val o = t.optJSONObject(i) ?: continue
-                val n = o.optString("name")
-                val s = o.optString("shortname")
-                if (n.isNotEmpty()) shortNames[n.lowercase()] = if (s.isNotEmpty()) s else n
-            }
-        }
-        val parts = ArrayList<String>()
-        m.optJSONArray("score")?.let { s ->
-            for (i in 0 until s.length()) {
-                val o = s.optJSONObject(i) ?: continue
-                val inning = o.optString("inning")
-                val team = inning.substringBefore(" Inning").substringBefore(" inning").trim()
-                val short = shortNames[team.lowercase()] ?: team
-                val overs = o.optDouble("o", 0.0)
-                val ov = if (overs % 1.0 == 0.0) overs.toInt().toString() else overs.toString()
-                parts.add("$short ${o.optInt("r")}/${o.optInt("w")} ($ov)")
-            }
-        }
-        val name = m.optString("name").replace('\t', ' ')
-        val score = if (parts.isNotEmpty()) parts.joinToString("  ·  ") else name.substringBefore(",")
-        return Match(m.optString("id"), name, m.optString("status"), m.optBoolean("matchEnded"), score)
     }
 }
