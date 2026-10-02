@@ -28,6 +28,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import android.widget.LinearLayout
 import android.widget.TextView
 import java.util.Locale
 import kotlin.math.abs
@@ -43,6 +44,8 @@ class TickerService : Service() {
         private val DOWN = Color.parseColor("#FF7B7B")
         private val DIM = Color.parseColor("#BDBDBD")
         private val BG = Color.parseColor("#E6121212")
+        private val DIVIDER = Color.parseColor("#33FFFFFF")
+        private val NEWS_SRC = Color.parseColor("#9FB4C8")
     }
 
     private lateinit var wm: WindowManager
@@ -54,6 +57,7 @@ class TickerService : Service() {
     private var overlay: View? = null
     private var marquee: MarqueeView? = null
     private var card: TextView? = null
+    private var newsView: MarqueeView? = null
     private var style = Prefs.STYLE_TOP
 
     private val quoteCache = HashMap<String, Quote>()
@@ -63,6 +67,9 @@ class TickerService : Service() {
     @Volatile private var cricketError: String? = null
     @Volatile private var stocksLoaded = false
     @Volatile private var cricketLoaded = false
+    @Volatile private var news: List<NewsItem> = emptyList()
+    @Volatile private var newsError: String? = null
+    @Volatile private var newsLoaded = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -88,10 +95,12 @@ class TickerService : Service() {
         val gen = ++generation
         stocksLoaded = false
         cricketLoaded = false
+        newsLoaded = false
         showOverlay()
         render()
         bg.post { stockLoop(gen) }
         bg.post { cricketLoop(gen) }
+        bg.post { newsLoop(gen) }
         return START_STICKY
     }
 
@@ -149,6 +158,25 @@ class TickerService : Service() {
         if (gen == generation) bg.postDelayed({ cricketLoop(gen) }, Prefs.cricketSec(this) * 1000L)
     }
 
+    private fun newsLoop(gen: Int) {
+        if (gen != generation) return
+        val city = Prefs.newsCity(this)
+        if (Prefs.newsOn(this) && city.isNotEmpty()) {
+            try {
+                val items = NewsFetcher.fetch(city)
+                if (items.isNotEmpty() || news.isEmpty()) news = items
+                newsError = null
+            } catch (e: Exception) {
+                if (news.isEmpty()) newsError = "News: couldn't load, will retry"
+            }
+        } else {
+            news = emptyList()
+        }
+        newsLoaded = true
+        main.post { render() }
+        if (gen == generation) bg.postDelayed({ newsLoop(gen) }, Prefs.newsMin(this) * 60_000L)
+    }
+
     // ---------- overlay ----------
 
     private fun showOverlay() {
@@ -167,38 +195,60 @@ class TickerService : Service() {
             PixelFormat.TRANSLUCENT
         )
 
-        val view: View
+        val showNews = Prefs.newsOn(this) && Prefs.newsCity(this).isNotEmpty()
+        val speed = Prefs.speed(this).toFloat()
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+
         if (style == Prefs.STYLE_FLOATING) {
             val tv = TextView(this).apply {
                 setTextColor(Color.WHITE)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, textSp)
                 setLineSpacing(0f, 1.15f)
                 maxWidth = (dm.widthPixels * 0.75).toInt()
-                setPadding(dp(12), dp(10), dp(12), dp(10))
-                background = GradientDrawable().apply {
-                    setColor(BG)
-                    cornerRadius = dp(14).toFloat()
-                }
             }
             card = tv
-            view = tv
-            lp.width = WindowManager.LayoutParams.WRAP_CONTENT
+            box.addView(tv)
+            box.setPadding(dp(12), dp(10), dp(12), dp(10))
+            box.background = GradientDrawable().apply {
+                setColor(BG)
+                cornerRadius = dp(14).toFloat()
+            }
+            lp.width = if (showNews) (dm.widthPixels * 0.75).toInt() + dp(24)
+                       else WindowManager.LayoutParams.WRAP_CONTENT
             lp.gravity = Gravity.TOP or Gravity.START
-            lp.x = prefs.getInt("pos_x_floating", dm.widthPixels / 4)
+            lp.x = prefs.getInt("pos_x_floating", dm.widthPixels / 8)
             lp.y = prefs.getInt("pos_y_floating", dp(140))
         } else {
             val mv = MarqueeView(this).apply {
                 setTextSizeSp(textSp)
-                speedDpPerSec = Prefs.speed(this@TickerService).toFloat()
+                speedDpPerSec = speed
                 setPadding(dp(8), dp(6), dp(8), dp(6))
-                setBackgroundColor(BG)
             }
             marquee = mv
-            view = mv
+            box.addView(mv, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+            box.setBackgroundColor(BG)
             lp.gravity = (if (style == Prefs.STYLE_BOTTOM) Gravity.BOTTOM else Gravity.TOP) or Gravity.START
             lp.x = 0
             lp.y = prefs.getInt("pos_y_$style", 0)
         }
+
+        if (showNews) {
+            box.addView(View(this).apply { setBackgroundColor(DIVIDER) },
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(1)).apply {
+                    topMargin = if (style == Prefs.STYLE_FLOATING) dp(8) else 0
+                })
+            val nv = MarqueeView(this).apply {
+                setTextSizeSp((textSp - 1f).coerceAtLeast(10f))
+                speedDpPerSec = speed
+                if (style == Prefs.STYLE_FLOATING) setPadding(0, dp(6), 0, 0)
+                else setPadding(dp(8), dp(5), dp(8), dp(6))
+            }
+            newsView = nv
+            box.addView(nv, LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        }
+        val view: View = box
 
         makeDraggable(view, lp)
         try {
@@ -207,6 +257,7 @@ class TickerService : Service() {
         } catch (e: Exception) {
             marquee = null
             card = null
+            newsView = null
             stopSelf()
         }
     }
@@ -216,6 +267,7 @@ class TickerService : Service() {
         overlay = null
         marquee = null
         card = null
+        newsView = null
     }
 
     /** Drag to move. Long-press to open settings. */
@@ -313,6 +365,29 @@ class TickerService : Service() {
         }
         marquee?.setText(sb)
         card?.text = sb
+        renderNews()
+    }
+
+    private fun renderNews() {
+        val nv = newsView ?: return
+        val sb = SpannableStringBuilder()
+        if (news.isEmpty()) {
+            sb.append("📰 ")
+            sb.append(newsError ?: if (newsLoaded) "No fresh local news for ${Prefs.newsCity(this)} yet"
+                                   else "Loading local news…")
+        } else {
+            for ((i, n) in news.withIndex()) {
+                if (i > 0) sb.append("      •      ")
+                sb.append("📰 ").append(n.title)
+                if (n.source.isNotEmpty()) {
+                    sb.append("  ")
+                    val s = sb.length
+                    sb.append(n.source)
+                    sb.setSpan(ForegroundColorSpan(NEWS_SRC), s, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        }
+        nv.setText(sb)
     }
 
     // ---------- foreground notification ----------

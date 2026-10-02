@@ -16,6 +16,9 @@ object Prefs {
     const val KEY_SPEED = "speed"
     const val KEY_STOCK_SEC = "stock_sec"
     const val KEY_CRICKET_SEC = "cricket_sec"
+    const val KEY_NEWS_ON = "news_on"
+    const val KEY_NEWS_CITY = "news_city"
+    const val KEY_NEWS_MIN = "news_min"
 
     const val DEFAULT_SYMBOLS = "^NSEI, ^BSESN, RELIANCE.NS, TCS.NS, AAPL, ^GSPC"
 
@@ -43,4 +46,7 @@ object Prefs {
     fun speed(c: Context): Int = of(c).getInt(KEY_SPEED, 60)
     fun stockSec(c: Context): Int = of(c).getInt(KEY_STOCK_SEC, 30).coerceAtLeast(10)
     fun cricketSec(c: Context): Int = of(c).getInt(KEY_CRICKET_SEC, 120).coerceAtLeast(30)
+    fun newsOn(c: Context): Boolean = of(c).getBoolean(KEY_NEWS_ON, true)
+    fun newsCity(c: Context): String = (of(c).getString(KEY_NEWS_CITY, "") ?: "").trim()
+    fun newsMin(c: Context): Int = of(c).getInt(KEY_NEWS_MIN, 10).coerceAtLeast(5)
 }

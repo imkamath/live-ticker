@@ -30,6 +30,9 @@ class MainActivity : Activity() {
     private lateinit var tvTextSize: TextView
     private lateinit var sbSpeed: SeekBar
     private lateinit var tvSpeed: TextView
+    private lateinit var cbNews: CheckBox
+    private lateinit var etCity: EditText
+    private lateinit var etNewsMin: EditText
 
     private val selected = LinkedHashMap<String, String>()   // match id -> name
 
@@ -48,12 +51,18 @@ class MainActivity : Activity() {
         tvTextSize = findViewById(R.id.tvTextSize)
         sbSpeed = findViewById(R.id.sbSpeed)
         tvSpeed = findViewById(R.id.tvSpeed)
+        cbNews = findViewById(R.id.cbNews)
+        etCity = findViewById(R.id.etCity)
+        etNewsMin = findViewById(R.id.etNewsMin)
 
         val p = Prefs.of(this)
         etSymbols.setText(p.getString(Prefs.KEY_SYMBOLS, Prefs.DEFAULT_SYMBOLS))
         etStockSec.setText(Prefs.stockSec(this).toString())
         etApiKey.setText(Prefs.apiKey(this))
         etCricketSec.setText(Prefs.cricketSec(this).toString())
+        cbNews.isChecked = Prefs.newsOn(this)
+        etCity.setText(Prefs.newsCity(this))
+        etNewsMin.setText(Prefs.newsMin(this).toString())
         selected.putAll(Prefs.matchEntries(this))
         showSavedMatches()
 
@@ -186,6 +195,9 @@ class MainActivity : Activity() {
             .putString(Prefs.KEY_STYLE, style)
             .putInt(Prefs.KEY_TEXT_SIZE, sbTextSize.progress)
             .putInt(Prefs.KEY_SPEED, sbSpeed.progress)
+            .putBoolean(Prefs.KEY_NEWS_ON, cbNews.isChecked)
+            .putString(Prefs.KEY_NEWS_CITY, etCity.text.toString().trim())
+            .putInt(Prefs.KEY_NEWS_MIN, etNewsMin.text.toString().toIntOrNull()?.coerceAtLeast(5) ?: 10)
             .apply()
     }
 
